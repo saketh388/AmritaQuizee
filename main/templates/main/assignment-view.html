@@ -1,0 +1,132 @@
+{% extends 'index.html' %}
+{% load static %}
+{% block title %} {{ assignment.title }} - AmQuP {% endblock title %}
+{% block profile %}
+{% url 'profile' faculty.faculty_id %}
+{% endblock profile %}
+{% block user %}
+{{faculty.name}}
+{% endblock user %}
+{% block allCourses %}
+{% url 'courses' %}
+{% endblock allCourses %}
+{% block courses %}
+{% url 'facultyCourses' %}
+{% endblock courses %}
+{% block content %}
+<!-- navigation links -->
+<div class="container shadow-sm">
+   <nav style="--bs-breadcrumb-divider: url(&#34;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M2.5 0L1 1.5 3.5 4 1 6.5 2.5 8l4-4-4-4z' fill='currentColor'/%3E%3C/svg%3E&#34;);" aria-label="breadcrumb">
+      <ol class="breadcrumb p-3">
+         <li class="breadcrumb-item fw-bold"><a style="color: rgb(10, 10, 48)" href="{% url 'facultyCourses' %}">My Courses</a></li>
+         <li class="breadcrumb-item fw-bold"><a style="color: rgb(10, 10, 48)" href="{% url 'faculty' course.code %}">{{ course.name }}</a></li>
+         <li class="breadcrumb-item active animate__animated animate__backInRight" aria-current="page">Assignment <span>({{ assignment.title }})</span></li>
+      </ol>
+   </nav>
+</div>
+<!-- navigation links end -->
+<div class="container">
+   <div class="shadow rounded p-3 assignment-info">
+      <p class="px-2 fw-bold fs-5">{{assignment.title}}</p>
+      <div class="p-2 text-break">{% autoescape off %}{{assignment.description}}{% endautoescape %}</div>
+      <h6 class="p-2 fw-bold">Deadline: <span class="px-2" style="color:red"> {{assignment.due_date}} </span></h6>
+      {% if assignment.file %}
+      <label class="p-2 fw-bold" for="">Attachment: &nbsp <a class="px-2 py-1 text-success bg-success bg-opacity-10 border border-success border-opacity-10 rounded-2" style="text-decoration: none; font-size: smaller !important" href="{{assignment.file.url}}"> &nbsp View</a> &nbsp or &nbsp <a class="fs-6 px-2 py-1 text-primary bg-primary bg-opacity-10 border border-priamry border-opacity-10 rounded-2" style="text-decoration: none; font-size: smaller !important" download href=" {{assignment.file.url}}">Download</a></label><br>
+      {% endif %}
+      <label class="p-2 fw-bold" for="">Submitted : {{assignment.submission_set.count}}/{{totalStudents}}</label><br>
+      <label class="p-2 fw-bold" for="">Time Remaining : <span class="fw-semibold" id="timeRemain"></span></label>
+   </div>
+   <h6 class="text-muted fw-bold fst-italic mt-3">Showing all submissions:</h6>
+</div>
+<!--Student grading table-->
+<div class="container assignment-info">
+   <div class="table-responsive">
+      <table class="table shadow rounded" style="white-space: nowrap;">
+         <caption>Student Submissions</caption>
+         <thead class="table-dark">
+            <tr>
+               <th class="text-center" scope="col" colspan="2">Student</th>
+               <th class="text-center" scope="col">Student ID</th>
+               <th class="text-center" scope="col">Submitted file</th>
+               <th class="text-center" scope="col">Submitted on</th>
+               <th class="text-center" scope="col" style="min-width: 150px;">Grade</th>
+            </tr>
+         </thead>
+         <tbody>
+            {% if not submissions %}
+            <td class="text-center text-muted fst-italic" colspan="6">No one has submitted yet</td>
+            {% else %}
+            {% for submission in submissions %}
+            <tr>
+               <td class="text-center"><img class="rounded-circle" src="/media/{{ submission.student.photo}}" alt="image" style="height: 2.5rem;"></td>
+               <td>{{submission.student.name}}</td>
+               <td class="text-center"><span>{{ submission.student_id }}</span></td>
+               <td class="text-center"><a href="{{ submission.file.url }}" download>{{ submission.file.name }}</a></td>
+               <td class="text-center">{{ submission.timestamp }}</td>
+               {% if submission.grade %}
+               <td class="text-center"><span style="color:green">{{ submission.grade }}</span></td>
+               {% else %}
+               <td class="text-center">
+                  <form action="{% url 'faculty-grade-assignment' submission.id %}" method="POST">
+                     {% csrf_token %}
+                     <input type="number" name="grade" min="0" max="100" required>
+                     <button type="submit" class="btn btn-sm btn-success">Grade</button>
+                  </form>
+               </td>
+               {% endif %}
+            </tr>
+            {% endfor %}
+            {% endif %}
+         </tbody>
+      </table>
+   </div>
+</div>
+<!--Student grading table ends-->
+{% endblock content %}
+
+{% block scripts %}
+<script>
+   // function to calculate and display time remaining until deadline
+   function getTimeRemaining(endtime) {
+      const total = Date.parse(endtime) - Date.parse(new Date());
+      const seconds = Math.floor((total / 1000) % 60);
+      const minutes = Math.floor((total / 1000 / 60) % 60);
+      const hours = Math.floor((total / (1000 * 60 * 60)) % 24);
+      const days = Math.floor(total / (1000 * 60 * 60 * 24));
+      return {
+         total,
+         days,
+         hours,
+         minutes,
+         seconds
+      };
+   }
+
+   function initializeClock(id, endtime) {
+      const clock = document.getElementById(id);
+      const daysSpan = clock.querySelector('.days');
+      const hoursSpan = clock.querySelector('.hours');
+      const minutesSpan = clock.querySelector('.minutes');
+      const secondsSpan = clock.querySelector('.seconds');
+
+      function updateClock() {
+         const t = getTimeRemaining(endtime);
+
+         daysSpan.innerHTML = t.days;
+         hoursSpan.innerHTML = ('0' + t.hours).slice(-2);
+         minutesSpan.innerHTML = ('0' + t.minutes).slice(-2);
+         secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
+
+         if (t.total <= 0) {
+            clearInterval(timeinterval);
+         }
+      }
+
+      updateClock();
+      const timeinterval = setInterval(updateClock, 1000);
+   }
+
+   const deadline = new Date("{{assignment.due_date}}").toLocaleString("en-US", {timeZone: "{{timezone}}"});
+   initializeClock("timeRemain", deadline);
+</script>
+{% endblock scripts %}
